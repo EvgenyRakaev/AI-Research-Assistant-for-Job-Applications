@@ -1,45 +1,60 @@
-from openai import OpenAI, RateLimitError
-from schemas.llm_response import LLMResponse
-import json
+import os, json
 from dotenv import load_dotenv
-import os
+from openai import OpenAI
+
+from schemas.llm_response import LLMResponse
+from tools.tool_specs import TOOLS
+from tools.tool_adapter import to_openai_tools
+from tools.extract_requirements import extract_requirements
 
 load_dotenv()
-
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 MODEL = "gpt-4.1-mini"
 
+
 def call_openai(prompt: str) -> LLMResponse:
-    try:
-        response = client.responses.create(
-            model=MODEL,
-            input=prompt
-        )
+    tools = to_openai_tools(TOOLS)
 
-        output_text = response.output[0].content[0].text
+    resp = client.responses.create(
+        model=MODEL,
+        input=prompt,
+        tools=tools
+    )
 
-        return LLMResponse(
-            provider="openai",
-            model=MODEL,
-            input=prompt,
-            output=output_text,
-            request_id=response.id,
-        )
+    tool_calls = getattr(resp, "tool_calls", None)
 
+    if tool_calls:
+        call = tool_calls[0]
 
-    except RateLimitError as e:
-        raise Exception(json.dumps({
-            "error": "quota_exceeded",
-            "provider": "openai",
-            "model": MODEL,
-            "raw": str(e)
-        }))
+        if call.name == "extract_requirements":
+            result = extract_requirements(**call.arguments)
 
-    except Exception as e:
-        raise Exception(json.dumps({
-            "error": "provider_failed",
-            "provider": "openai",
-            "model": MODEL,
-            "raw": str(e)
-        }))
+            follow_up = client.responses.create(
+                model=MODEL,
+                input=[
+                    {"role": "user", "content": prompt},
+                    {
+                        "type": "tool_result",
+                        "tool_name": call.name,
+                        "content": json.dumps(result)
+                    }
+                ],
+                tools=tools
+            )
+
+            return LLMResponse(
+                provider="openai",
+                model=MODEL,
+                input=prompt,
+                output=follow_up.output[0].content[0].text,
+                request_id=follow_up.id
+            )
+
+    return LLMResponse(
+        provider="openai",
+        model=MODEL,
+        input=prompt,
+        output=resp.output[0].content[0].text,
+        request_id=resp.id
+    )
