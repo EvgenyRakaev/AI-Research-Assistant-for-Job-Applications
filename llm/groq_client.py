@@ -47,7 +47,7 @@ def call_groq(prompt: str) -> LLMResponse:
     print("\n=== RAW LLM RESPONSE ===")
     print(content)
 
-    # --- пытаемся распарсить как tool call ---
+    # --- attempt to parse as tool call ---
     import json
 
     try:
@@ -72,7 +72,7 @@ def call_groq(prompt: str) -> LLMResponse:
     except Exception:
         pass
 
-    # --- обычный ответ ---
+    # --- regular response ---
     return LLMResponse(
         provider="groq",
         model=MODEL,

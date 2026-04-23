@@ -25,7 +25,6 @@ def run_llm(provider: str, prompt: str):
     try:
         result = CLIENTS[provider](prompt)
 
-        # лог успеха (по желанию можно убрать)
         print(f"[{datetime.now()}][{provider.upper()}][ok]")
 
         return result
@@ -33,7 +32,6 @@ def run_llm(provider: str, prompt: str):
     except Exception as e:
         raw = str(e)
 
-        # короткий лог ошибки
         print(f"[{datetime.now()}][{provider.upper()}][error] {raw[:500]}")
 
         raise
